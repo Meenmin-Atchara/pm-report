@@ -919,24 +919,28 @@ function GlobalStyle() {
 
       /* ---- Responsive: tablet / desktop ---- */
       @media (min-width: 860px){
-        .app{padding:32px 16px;align-items:flex-start;}
-        .phone{max-width:960px;min-height:auto;border-radius:14px;overflow:hidden;box-shadow:0 12px 36px rgba(0,0,0,0.28);border:1px solid var(--border);}
-        .systemHeader{padding:16px 28px;}
-        .desktopNav{display:flex;align-items:center;gap:6px;padding:10px 28px;background:var(--surface);border-bottom:1px solid var(--border);}
+        .app{padding:0;align-items:flex-start;}
+        .phone{max-width:none;width:100%;min-height:100vh;}
+        .systemHeader{padding:16px 32px;}
+        .desktopNav{display:flex;align-items:center;gap:6px;padding:10px 32px;background:var(--surface);border-bottom:1px solid var(--border);}
         .deskTab{display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--muted);font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:600;padding:8px 14px;border-radius:6px;cursor:pointer;}
         .deskTab.active{color:var(--amber);background:var(--amber-tint);}
         .deskAdd{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--amber);color:#20220a;border:none;font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:700;padding:9px 16px;border-radius:6px;cursor:pointer;}
         .deskTab:disabled,.deskAdd:disabled{opacity:0.4;cursor:default;}
         .tabBar{display:none;}
-        .content{max-width:640px;margin:0 auto;width:100%;padding:28px 24px 40px;}
-        .topbar{max-width:640px;margin:0 auto;width:100%;padding:20px 24px 14px;}
-        .footer{max-width:640px;margin:0 auto;width:100%;padding:16px 24px;}
-        .grid{gap:6px;}
-        .photoGrid{grid-template-columns:repeat(4,1fr);}
+        .content{max-width:900px;margin:0 auto;width:100%;padding:32px 32px 48px;}
+        .topbar{max-width:900px;margin:0 auto;width:100%;padding:22px 32px 16px;}
+        .footer{max-width:900px;margin:0 auto;width:100%;padding:18px 32px;}
+        .grid{gap:8px;}
+        .dayCell{aspect-ratio:1.1;}
+        .photoGrid{grid-template-columns:repeat(6,1fr);}
+        .knownList{max-width:640px;}
+        .taskRow,.issueCard{max-width:640px;}
+        .summaryBox{max-width:640px;}
       }
-      @media (min-width: 1180px){
-        .phone{max-width:1080px;}
-        .content,.topbar,.footer{max-width:760px;}
+      @media (min-width: 1400px){
+        .content,.topbar,.footer{max-width:1100px;}
+        .photoGrid{grid-template-columns:repeat(8,1fr);}
       }
 
       .printArea{display:none;}
