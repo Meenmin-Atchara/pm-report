@@ -1,16 +1,71 @@
-# React + Vite
+# PM Field Report
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+เว็บแอปสำหรับทีมช่าง PM ใช้สรุปการทำงานหน้างานให้เร็วที่สุด:
+เลือกวันที่ (พร้อมแจ้งวันหยุดราชการไทยอัตโนมัติ), บันทึกงานที่ทำ, ปัญหาที่พบ
+(มีคลังปัญหาที่เจอบ่อยให้เติมสาเหตุ/วิธีแก้อัตโนมัติ), แนบรูป แล้วส่งสรุปเข้า
+กลุ่มไลน์หรือ export เป็น PDF ได้ในไม่กี่แตะ พร้อมบันทึกฉบับร่างระหว่างวันและ
+ปฏิทิน/ประวัติย้อนหลัง
 
-Currently, two official plugins are available:
+## เริ่มใช้งาน (dev)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+ต้องมี [Node.js](https://nodejs.org) เวอร์ชัน 18 ขึ้นไป
 
-## React Compiler
+```bash
+npm install
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+เปิดลิงก์ที่ terminal แสดง (ปกติคือ http://localhost:5173)
 
-## Expanding the Oxlint configuration
+## Build สำหรับใช้งานจริง
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+npm run build
+```
+
+ไฟล์ที่ build แล้วจะอยู่ในโฟลเดอร์ `dist/` เอาไปวางบน static host ไหนก็ได้
+(GitHub Pages, Vercel, Netlify, Firebase Hosting ฯลฯ)
+
+## ⚠️ ข้อจำกัดสำคัญ: ที่เก็บข้อมูล
+
+โปรเจกต์นี้เก็บฉบับร่างและประวัติงานไว้ใน **localStorage ของเบราว์เซอร์**
+(ดูไฟล์ `src/storage.js`) ซึ่งหมายความว่า:
+
+- ข้อมูลอยู่เฉพาะในเครื่อง/เบราว์เซอร์ที่กรอกเท่านั้น
+- **ไม่ใช่ที่เก็บกลางที่ทุกคนในทีมเห็นร่วมกัน** — ถ้าช่าง A บันทึกจากมือถือตัวเอง
+  ช่าง B หรือหัวหน้าจะไม่เห็นในปฏิทินของตัวเอง
+- ถ้าล้างเบราว์เซอร์ (clear cache/site data) ข้อมูลจะหายทั้งหมด
+
+เหมาะสำหรับทดลองใช้งานหรือให้ช่างคนเดียวใช้บันทึกส่วนตัวไปก่อน
+
+**ถ้าต้องการให้ทั้งทีมเห็นปฏิทิน/ประวัติร่วมกันจริงๆ** ต้องเปลี่ยนไปใช้ฐานข้อมูล
+จริง เช่น Firebase Firestore หรือ Supabase — จุดที่ต้องแก้มีที่เดียวคือ
+`src/storage.js` (ฟังก์ชัน get/set/delete/list ทั้ง 4 ตัว) ส่วน `src/App.jsx`
+ไม่ต้องแก้อะไรเลย เพราะเรียกผ่าน `window.storage` เหมือนเดิม บอกได้ถ้าต้องการ
+ให้ช่วยต่อ Firebase/Supabase ให้
+
+## โครงสร้างไฟล์
+
+```
+pm-field-report/
+├── index.html
+├── package.json
+├── vite.config.js
+└── src/
+    ├── main.jsx      # entry point, ติดตั้ง storage polyfill
+    ├── App.jsx       # แอปทั้งหมด (ปฏิทิน, ฟอร์ม, ประวัติ, ฉบับร่าง)
+    └── storage.js    # localStorage-backed storage — จุดเดียวที่ต้องแก้ถ้าจะเปลี่ยนไปใช้ฐานข้อมูลจริง
+```
+
+## Deploy ขึ้น GitHub Pages (ฟรี)
+
+1. Push โค้ดขึ้น GitHub repo ของคุณ (ดูขั้นตอนด้านล่าง)
+2. ใน `vite.config.js` เปลี่ยน `base: "./"` เป็น `base: "/ชื่อ-repo-ของคุณ/"`
+3. รัน `npm run build` แล้ว deploy โฟลเดอร์ `dist/` ด้วย GitHub Pages
+   (หรือใช้ GitHub Actions / แพ็กเกจ `gh-pages` ให้ทำอัตโนมัติ)
+
+## Deploy ผ่าน Vercel / Netlify (ง่ายกว่า แนะนำ)
+
+เชื่อม GitHub repo กับ Vercel หรือ Netlify แล้ว import โปรเจกต์ได้เลย ทั้งสอง
+เจ้าจะรู้จัก Vite อัตโนมัติ (build command: `npm run build`, output: `dist`)
+ทุกครั้งที่ push โค้ดใหม่ เว็บจะ build และอัปเดตให้อัตโนมัติ

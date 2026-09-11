@@ -1,10 +1,15 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.jsx'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import storage from "./storage.js";
+import App from "./App.jsx";
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
+// App.jsx calls window.storage.* directly (same API as Claude Artifacts'
+// persistent storage). Attaching the localStorage-backed polyfill here lets
+// App.jsx run unmodified as a normal static web app.
+window.storage = storage;
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
     <App />
-  </StrictMode>,
-)
+  </React.StrictMode>
+);

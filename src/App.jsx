@@ -102,32 +102,24 @@ function buildSummaryText(form) {
 function siteLabelOf(form) { return form.site === "อื่นๆ" ? form.siteCustom : form.site; }
 
 // ---------------------------------------------------------------------------
-// Storage helpers (Fixed with safety checks)
+// Storage helpers
 // ---------------------------------------------------------------------------
 async function getDraft(dateISO) {
-  try { 
-    if (!window.storage?.get) return null;
-    const res = await window.storage.get(`draft:${dateISO}`, false); 
-    return res && res.value ? JSON.parse(res.value) : null; 
-  }
+  try { const res = await window.storage.get(`draft:${dateISO}`, false); return res ? JSON.parse(res.value) : null; }
   catch { return null; }
 }
 async function setDraftStore(dateISO, form) {
-  try { if (window.storage?.set) await window.storage.set(`draft:${dateISO}`, JSON.stringify(form), false); } catch {}
+  try { await window.storage.set(`draft:${dateISO}`, JSON.stringify(form), false); } catch {}
 }
 async function deleteDraft(dateISO) {
-  try { if (window.storage?.delete) await window.storage.delete(`draft:${dateISO}`, false); } catch {}
+  try { await window.storage.delete(`draft:${dateISO}`, false); } catch {}
 }
 async function getAllDrafts() {
   try {
-    if (!window.storage?.list) return [];
     const res = await window.storage.list("draft:", false);
     const keys = res?.keys || [];
     const items = await Promise.all(keys.map(async (k) => {
-      try { 
-        const r = await window.storage?.get?.(k, false); 
-        return r && r.value ? { date: k.replace("draft:", ""), form: JSON.parse(r.value) } : null; 
-      }
+      try { const r = await window.storage.get(k, false); return r ? { date: k.replace("draft:", ""), form: JSON.parse(r.value) } : null; }
       catch { return null; }
     }));
     return items.filter(Boolean).sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -137,45 +129,32 @@ async function saveReport(form) {
   const id = uid();
   const key = `report:${form.date}:${id}`;
   const payload = { ...form, id, finalizedAt: new Date().toISOString() };
-  try { if (window.storage?.set) await window.storage.set(key, JSON.stringify(payload), true); } catch {}
+  try { await window.storage.set(key, JSON.stringify(payload), true); } catch {}
   return payload;
 }
 async function listReportKeys() {
-  try { 
-    if (!window.storage?.list) return [];
-    const res = await window.storage.list("report:", true); 
-    return res?.keys || []; 
-  } catch { return []; }
+  try { const res = await window.storage.list("report:", true); return res?.keys || []; } catch { return []; }
 }
 async function getReportsForDate(dateISO) {
   try {
-    if (!window.storage?.list) return [];
     const res = await window.storage.list(`report:${dateISO}:`, true);
     const keys = res?.keys || [];
     const items = await Promise.all(keys.map(async (k) => {
-      try { 
-        const r = await window.storage?.get?.(k, true); 
-        return r && r.value ? JSON.parse(r.value) : null; 
-      } catch { return null; }
+      try { const r = await window.storage.get(k, true); return r ? JSON.parse(r.value) : null; } catch { return null; }
     }));
     return items.filter(Boolean).sort((a, b) => (a.finalizedAt < b.finalizedAt ? 1 : -1));
   } catch { return []; }
 }
 async function getAllReports() {
-  try {
-    const keys = await listReportKeys();
-    const items = await Promise.all(keys.map(async (k) => {
-      try { 
-        const r = await window.storage?.get?.(k, true); 
-        return r && r.value ? JSON.parse(r.value) : null; 
-      } catch { return null; }
-    }));
-    return items.filter(Boolean).sort((a, b) => (a.finalizedAt < b.finalizedAt ? 1 : -1));
-  } catch { return []; }
+  const keys = await listReportKeys();
+  const items = await Promise.all(keys.map(async (k) => {
+    try { const r = await window.storage.get(k, true); return r ? JSON.parse(r.value) : null; } catch { return null; }
+  }));
+  return items.filter(Boolean).sort((a, b) => (a.finalizedAt < b.finalizedAt ? 1 : -1));
 }
 
 // ---------------------------------------------------------------------------
-// Icons
+// Icons (simple inline SVG, matches the industrial/amber accent look)
 // ---------------------------------------------------------------------------
 const Icon = {
   Calendar: (p) => (
@@ -211,16 +190,23 @@ const Icon = {
   ),
 };
 
-const LOGO = (p) => (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" {...p}>
-    <path d="M4 21V9l8-5 8 5v12" />
-    <path d="M9 21v-6h6v6" />
-  </svg>
+const LOGO = () => (
+  <span className="logoWrap">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M6 2.5h7.5l4.5 4.5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z" />
+      <path d="M13.5 2.5v4.5H18" />
+      <path d="M8 11.5h7M8 15h7M8 18.5h4" />
+    </svg>
+    <svg viewBox="0 0 24 24" width="13" height="13" className="logoWrench">
+      <circle cx="12" cy="12" r="11" fill="var(--amber)" />
+      <path d="M17.4 8.3a3.4 3.4 0 0 1-4.5 4.5l-3.8 3.8a1.15 1.15 0 0 1-1.6-1.6l3.8-3.8a3.4 3.4 0 0 1 4.5-4.5l-2.1 2.1 1.1 1.1 2.1-2.1c.2.2.4.3.5.5z" fill="#20220a" />
+    </svg>
+  </span>
 );
 
 export default function PMFieldReport() {
-  const [tab, setTab] = useState("calendar");
-  const [stack, setStack] = useState(null);
+  const [tab, setTab] = useState("calendar"); // calendar | history | drafts
+  const [stack, setStack] = useState(null); // { screen: 'daylist'|'form'|'viewreport', ... }
   const [viewMonth, setViewMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [reportDates, setReportDates] = useState({});
   const [draftDates, setDraftDates] = useState({});
@@ -231,13 +217,12 @@ export default function PMFieldReport() {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
 
   useEffect(() => {
-    window.storage?.get?.("theme", false).then((r) => { if (r?.value) setTheme(r.value); }).catch(() => {});
+    window.storage.get("theme", false).then((r) => { if (r?.value) setTheme(r.value); }).catch(() => {});
   }, []);
-  
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    window.storage?.set?.("theme", next, false).catch(() => {});
+    window.storage.set("theme", next, false).catch(() => {});
   }
 
   const refreshIndex = useCallback(async () => {
@@ -269,8 +254,17 @@ export default function PMFieldReport() {
 
   return (
     <div className="app" data-theme={theme}>
+      <GlobalStyle />
       <div className="phone">
         <SystemHeader theme={theme} onToggleTheme={toggleTheme} />
+        <DesktopNav
+          tab={tab} setTab={setTab}
+          onQuickAdd={async () => {
+            const draft = await getDraft(todayISO());
+            openForm(todayISO(), draft || null);
+          }}
+          disabled={stack !== null}
+        />
         <div className="screenArea">
           {stack === null && tab === "calendar" && (
             <CalendarScreen
@@ -298,7 +292,7 @@ export default function PMFieldReport() {
             <ReportForm
               dateISO={stack.date} initialDraft={stack.draft}
               onExitToDay={async () => { await openDay(stack.date); }}
-              onDraftSaved={async () => { await refreshIndex(); showToast("บันทึกฉบับร่างแล้ว"); }}
+              onDraftSaved={async (form) => { await refreshIndex(); showToast("บันทึกฉบับร่างแล้ว"); }}
               onFinalized={async () => {
                 await deleteDraft(stack.date);
                 await refreshIndex();
@@ -321,7 +315,7 @@ export default function PMFieldReport() {
         {showTabBar && (
           <TabBar
             tab={tab} setTab={setTab}
-            onQuickAdd={(draft) => openForm(todayISO(), draft)}
+            onQuickAdd={() => openForm(todayISO(), draftDates[todayISO()] ? undefined : null)}
           />
         )}
 
@@ -347,7 +341,12 @@ export default function PMFieldReport() {
 }
 
 // ---------------------------------------------------------------------------
-// System header
+// Quick-add: resolve today's draft before opening the form
+// ---------------------------------------------------------------------------
+function useQuickAddResolver() {}
+
+// ---------------------------------------------------------------------------
+// System header — always visible, holds branding + theme switch
 // ---------------------------------------------------------------------------
 function SystemHeader({ theme, onToggleTheme }) {
   return (
@@ -362,6 +361,29 @@ function SystemHeader({ theme, onToggleTheme }) {
       <button className="themeToggle" onClick={onToggleTheme} aria-label="สลับโหมดสี">
         <span className={`themeSeg ${theme === "dark" ? "active" : ""}`}><Icon.Moon /></span>
         <span className={`themeSeg ${theme === "light" ? "active" : ""}`}><Icon.Sun /></span>
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Desktop top nav — same 3 destinations as the mobile tab bar, shown only on
+// wide viewports (see .desktopNav media query); mobile keeps the bottom bar.
+// ---------------------------------------------------------------------------
+function DesktopNav({ tab, setTab, onQuickAdd, disabled }) {
+  return (
+    <div className="desktopNav">
+      <button className={`deskTab ${tab === "calendar" ? "active" : ""}`} onClick={() => setTab("calendar")} disabled={disabled}>
+        <Icon.Calendar /> ปฏิทิน
+      </button>
+      <button className={`deskTab ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")} disabled={disabled}>
+        <Icon.History /> ประวัติ
+      </button>
+      <button className={`deskTab ${tab === "drafts" ? "active" : ""}`} onClick={() => setTab("drafts")} disabled={disabled}>
+        <Icon.Draft /> ฉบับร่าง
+      </button>
+      <button className="deskAdd" onClick={onQuickAdd} disabled={disabled}>
+        <Icon.Plus /> บันทึกงานวันนี้
       </button>
     </div>
   );
@@ -459,7 +481,7 @@ function CalendarScreen({ viewMonth, setViewMonth, reportDates, draftDates, onSe
 }
 
 // ---------------------------------------------------------------------------
-// History tab
+// History tab — flat list of all finalized reports, newest first
 // ---------------------------------------------------------------------------
 function HistoryScreen({ onOpenReport }) {
   const [items, setItems] = useState(null);
@@ -508,7 +530,7 @@ function HistoryScreen({ onOpenReport }) {
 }
 
 // ---------------------------------------------------------------------------
-// Drafts tab
+// Drafts tab — flat list of all pending drafts across every date
 // ---------------------------------------------------------------------------
 function DraftsScreen({ onResume }) {
   const [items, setItems] = useState(null);
@@ -535,7 +557,7 @@ function DraftsScreen({ onResume }) {
 }
 
 // ---------------------------------------------------------------------------
-// Day list screen
+// Day list (all entries for one date, reached from the calendar)
 // ---------------------------------------------------------------------------
 function DayListScreen({ dateISO, reports, draft, loading, onBack, onNewOrResume, onViewReport }) {
   const holiday = TH_HOLIDAYS[dateISO];
@@ -571,7 +593,7 @@ function DayListScreen({ dateISO, reports, draft, loading, onBack, onNewOrResume
 }
 
 // ---------------------------------------------------------------------------
-// View report screen
+// View a single finalized report
 // ---------------------------------------------------------------------------
 function ViewReportScreen({ report, onBack, onPrint }) {
   return (
@@ -594,7 +616,7 @@ function ViewReportScreen({ report, onBack, onPrint }) {
 }
 
 // ---------------------------------------------------------------------------
-// Report form (5 steps)
+// The 5-step report form
 // ---------------------------------------------------------------------------
 function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinalized, onPrint, showToast }) {
   const [step, setStep] = useState(0);
@@ -644,6 +666,8 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
     showToast("เปิดไลน์แล้ว เลือกกลุ่มปลายทาง (แนบรูปเพิ่มเองในแชท)");
   }
   async function finalizeToHistory() { await saveReport(form); onFinalized(); }
+
+  const canNext = [!!siteLabel && !!form.date, true, true, true];
 
   return (
     <>
@@ -750,16 +774,182 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
               <button className="btn btnLine" onClick={sendToLine}>ส่งเข้ากลุ่มไลน์</button>
               <button className="btn btnPdf" onClick={() => onPrint(form)}>บันทึกเป็น PDF</button>
               <button className="copyLink" onClick={copySummary}>คัดลอกข้อความอย่างเดียว</button>
-              <button className="btn btnFinish" onClick={finalizeToHistory}>✓ จบ</button>
+              <button className="btn btnFinish" onClick={finalizeToHistory}>✓ จบงานวันนี้ / บันทึกเข้าประวัติ</button>
             </div>
           </>
         )}
       </div>
 
-      <div className="footer" style={{ display: "flex", gap: 10 }}>
-        {step > 0 && <button className="btn btnSecondary" onClick={() => setStep(step - 1)}>ย้อนกลับ</button>}
-        {step < STEPS.length - 1 && <button className="btn btnPrimary" style={{ flex: 1 }} onClick={() => setStep(step + 1)}>ถัดไป</button>}
+      <div className="footer">
+        {step > 0 && <button className="btn btnGhost" onClick={() => setStep((s) => s - 1)}>ย้อนกลับ</button>}
+        {step < STEPS.length - 1 && (
+          <button className="btn btnPrimary" disabled={!canNext[step]} style={{ opacity: canNext[step] ? 1 : 0.5 }} onClick={() => setStep((s) => s + 1)}>ถัดไป</button>
+        )}
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+function GlobalStyle() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Sarabun:wght@400;500;600&display=swap');
+      :root{
+        --bg:#15181A; --surface:#1D2220; --surface2:#262C29; --border:#333F38;
+        --amber:#FFC93C; --amber-dim:#8A6E1F; --amber-tint:rgba(255,201,60,0.10); --rust:#E4572E; --text:#EDEFEC;
+        --muted:#8D958E; --ok:#6FBF73; --line:#06C755;
+      }
+      .app[data-theme="light"]{
+        --bg:#E9ECEA; --surface:#FFFFFF; --surface2:#F3F5F4; --border:#D6DBD8;
+        --amber:#B57900; --amber-dim:#B57900; --amber-tint:rgba(181,121,0,0.10); --rust:#C23B1C; --text:#171A18;
+        --muted:#5C655F; --ok:#2E7D46; --line:#06A24A;
+      }
+      *{box-sizing:border-box;}
+      .app{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;justify-content:center;}
+      .phone{width:100%;max-width:460px;min-height:100vh;background:var(--surface);display:flex;flex-direction:column;position:relative;}
+      .screenArea{flex:1;display:flex;flex-direction:column;min-height:0;}
+      .systemHeader{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--bg);border-bottom:1px solid var(--border);}
+      .sysBrand{display:flex;align-items:center;gap:9px;color:var(--amber);}
+      .sysTitle{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:14px;color:var(--amber);line-height:1.2;}
+      .sysSub{font-size:10.5px;color:var(--muted);line-height:1.2;}
+      .themeToggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px;cursor:pointer;gap:2px;}
+      .themeSeg{width:26px;height:22px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:var(--muted);}
+      .themeSeg.active{background:var(--amber);color:#20220a;}
+      .topbar{padding:18px 20px 14px;border-bottom:1px solid var(--border);}
+      .brand{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:15px;color:var(--amber);margin:0 0 10px;}
+      .stepRow{display:flex;align-items:center;justify-content:space-between;}
+      .stepTitle{font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:19px;}
+      .stepNum{font-family:'Chakra Petch',sans-serif;color:var(--muted);font-size:13px;}
+      .progressTrack{height:3px;background:var(--border);margin-top:12px;border-radius:2px;overflow:hidden;}
+      .progressFill{height:100%;background:var(--amber);transition:width .25s ease;}
+      .content{flex:1;padding:20px 20px 30px;overflow-y:auto;}
+      label{display:block;font-size:13px;color:var(--muted);margin:18px 0 7px;}
+      label:first-child{margin-top:0;}
+      input[type=text],input[type=time],input[type=date],textarea{
+        width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+        color:var(--text);font-family:'Sarabun',sans-serif;font-size:15px;padding:11px 12px;outline:none;
+      }
+      input[type=date]{color-scheme:dark;}
+      .app[data-theme="light"] input[type=date]{color-scheme:light;}
+      input:focus,textarea:focus{border-color:var(--amber);}
+      textarea{resize:vertical;min-height:64px;}
+      .dateSub{font-size:13px;color:var(--muted);margin-top:6px;}
+      .holidayInline{color:var(--rust);}
+      .chipRow{display:flex;flex-wrap:wrap;gap:8px;}
+      .chip{padding:9px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);font-size:14px;cursor:pointer;}
+      .chip.active{border-color:var(--amber);background:var(--amber-tint);color:var(--amber);}
+      .tagRow{display:flex;gap:8px;margin-top:8px;}
+      .tagRow input{flex:1;}
+      .addBtn{background:var(--surface2);border:1px solid var(--border);color:var(--amber);border-radius:6px;padding:0 16px;font-family:'Chakra Petch',sans-serif;font-weight:600;cursor:pointer;}
+      .techList{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+      .techPill{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 10px 6px 14px;font-size:13px;display:flex;align-items:center;gap:8px;}
+      .techPill button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;}
+      .taskRow,.issueCard{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;}
+      .taskRow{display:flex;gap:8px;align-items:center;padding:6px 10px;}
+      .taskRow input{border:none;background:none;padding:8px 0;}
+      .rowRemove{background:none;border:none;color:var(--rust);font-size:18px;cursor:pointer;line-height:1;padding:4px;}
+      .addLink{color:var(--amber);font-family:'Chakra Petch',sans-serif;font-size:14px;font-weight:600;background:none;border:none;cursor:pointer;padding:6px 0;}
+      .stepEyebrow{font-family:'Chakra Petch',sans-serif;font-size:12px;color:var(--amber);margin-bottom:2px;}
+      .issueHead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+      .issueScope{font-family:'Chakra Petch',sans-serif;font-size:12px;color:var(--muted);}
+      .knownList{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+      .knownItem{text-align:left;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13.5px;cursor:pointer;}
+      .knownItem b{color:var(--amber);font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:12.5px;}
+      .photoGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+      .photoThumb{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;border:1px solid var(--border);}
+      .photoThumb img{width:100%;height:100%;object-fit:cover;display:block;}
+      .photoRemove{position:absolute;top:4px;right:4px;width:20px;height:20px;background:rgba(0,0,0,0.65);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+      .photoAdd{aspect-ratio:1;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:var(--muted);font-size:12px;cursor:pointer;background:var(--surface2);}
+      .photoAdd span{font-size:22px;color:var(--amber);}
+      .summaryBox{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;white-space:pre-wrap;font-size:14px;line-height:1.7;}
+      .summaryPreview{font-size:13px;color:var(--muted);line-height:1.6;white-space:pre-wrap;margin-top:6px;}
+      .summaryPhotos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px;}
+      .summaryPhotos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:5px;}
+      .footer{background:var(--surface);border-top:1px solid var(--border);padding:14px 20px;display:flex;gap:10px;}
+      .btn{flex:1;padding:14px;border-radius:7px;font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:15px;border:none;cursor:pointer;}
+      .btnGhost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+      .btnPrimary{background:var(--amber);color:#20220a;}
+      .btnFinish{background:var(--ok);color:#0d2210;}
+      .finalActions{display:flex;flex-direction:column;gap:10px;margin-top:20px;}
+      .btnLine{background:var(--line);color:#fff;}
+      .btnPdf{background:var(--surface2);color:var(--amber);border:1px solid var(--amber-dim);}
+      .copyLink{text-align:center;font-size:13px;color:var(--muted);background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;}
+      .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--amber);color:var(--text);padding:10px 16px;border-radius:8px;font-size:13px;max-width:380px;text-align:center;z-index:50;}
+      .muted{color:var(--muted);font-size:14px;}
+
+      .desktopNav{display:none;}
+      .tabBar{display:flex;align-items:center;justify-content:space-around;background:var(--surface);border-top:1px solid var(--border);padding:8px 10px calc(8px + env(safe-area-inset-bottom));position:relative;}
+      .tabBtn{background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-family:'Sarabun',sans-serif;cursor:pointer;padding:4px 10px;flex:1;}
+      .tabBtn.active{color:var(--amber);}
+      .tabFab{width:50px;height:50px;border-radius:50%;background:var(--amber);color:#20220a;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:-26px;box-shadow:0 4px 12px rgba(0,0,0,.4);border:3px solid var(--surface);}
+
+      /* Calendar */
+      .calHead{display:flex;align-items:center;justify-content:space-between;}
+      .calTitle{font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:18px;}
+      .navArrow{background:var(--surface2);border:1px solid var(--border);color:var(--amber);width:34px;height:34px;border-radius:6px;font-size:18px;cursor:pointer;}
+      .weekRow{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:6px;}
+      .weekCell{text-align:center;font-size:12px;color:var(--muted);font-family:'Chakra Petch',sans-serif;}
+      .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+      .dayCell{aspect-ratio:0.85;background:var(--surface2);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:6px 2px;cursor:pointer;color:var(--text);position:relative;}
+      .dayCell.empty{background:transparent;border:none;cursor:default;}
+      .dayCell.today{border-color:var(--amber);}
+      .dayCell.holiday .dayNum{color:var(--rust);}
+      .dayNum{font-family:'Chakra Petch',sans-serif;font-size:14px;font-weight:600;}
+      .holidayTag{font-size:8px;line-height:1.1;color:var(--rust);text-align:center;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .dotRow{display:flex;gap:3px;margin-top:auto;padding-top:4px;}
+      .dot{width:5px;height:5px;border-radius:50%;display:inline-block;}
+      .dotReport{background:var(--ok);}
+      .dotDraft{background:var(--amber);}
+      .legend{display:flex;gap:16px;margin-top:16px;font-size:12px;color:var(--muted);align-items:center;}
+      .legend .dot{margin-right:5px;}
+
+      /* Day list / report cards */
+      .backRow{display:flex;justify-content:space-between;align-items:center;}
+      .backBtn{background:none;border:none;color:var(--amber);font-family:'Chakra Petch',sans-serif;font-size:14px;cursor:pointer;padding:0;}
+      .draftLink{background:none;border:none;color:var(--amber);font-size:13px;cursor:pointer;}
+      .holidayNote{color:var(--rust);font-size:13px;margin-top:4px;}
+      .draftCard{background:var(--amber-tint);border:1px dashed var(--amber-dim);border-radius:8px;padding:14px;margin-bottom:14px;cursor:pointer;}
+      .draftBadge{font-family:'Chakra Petch',sans-serif;font-size:12px;color:var(--amber);font-weight:600;}
+      .draftCta{font-size:13px;color:var(--amber);margin-top:8px;}
+      .reportCard{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;}
+      .reportTime{font-family:'Chakra Petch',sans-serif;font-size:12px;color:var(--ok);margin-bottom:4px;}
+
+      /* ---- Responsive: tablet / desktop ---- */
+      @media (min-width: 860px){
+        .app{padding:32px 16px;align-items:flex-start;}
+        .phone{max-width:960px;min-height:auto;border-radius:14px;overflow:hidden;box-shadow:0 12px 36px rgba(0,0,0,0.28);border:1px solid var(--border);}
+        .systemHeader{padding:16px 28px;}
+        .desktopNav{display:flex;align-items:center;gap:6px;padding:10px 28px;background:var(--surface);border-bottom:1px solid var(--border);}
+        .deskTab{display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--muted);font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:600;padding:8px 14px;border-radius:6px;cursor:pointer;}
+        .deskTab.active{color:var(--amber);background:var(--amber-tint);}
+        .deskAdd{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--amber);color:#20220a;border:none;font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:700;padding:9px 16px;border-radius:6px;cursor:pointer;}
+        .deskTab:disabled,.deskAdd:disabled{opacity:0.4;cursor:default;}
+        .tabBar{display:none;}
+        .content{max-width:640px;margin:0 auto;width:100%;padding:28px 24px 40px;}
+        .topbar{max-width:640px;margin:0 auto;width:100%;padding:20px 24px 14px;}
+        .footer{max-width:640px;margin:0 auto;width:100%;padding:16px 24px;}
+        .grid{gap:6px;}
+        .photoGrid{grid-template-columns:repeat(4,1fr);}
+      }
+      @media (min-width: 1180px){
+        .phone{max-width:1080px;}
+        .content,.topbar,.footer{max-width:760px;}
+      }
+
+      .printArea{display:none;}
+      @media print{
+        .app,.phone{background:#fff !important;color:#000 !important;max-width:none;}
+        .topbar,.footer,.content,.tabBar{display:none !important;}
+        .printArea{display:block !important;padding:24px;font-family:'Sarabun',sans-serif;color:#000;}
+        .printArea h1{font-family:'Chakra Petch',sans-serif;font-size:20px;margin:0 0 4px;}
+        .printArea .meta{color:#333;font-size:13px;margin-bottom:16px;}
+        .printArea pre{white-space:pre-wrap;font-family:'Sarabun',sans-serif;font-size:14px;line-height:1.8;}
+        .printPhotos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px;}
+        .printPhotos img{width:100%;border-radius:4px;}
+      }
+    `}</style>
   );
 }
