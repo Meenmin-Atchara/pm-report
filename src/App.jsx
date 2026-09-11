@@ -315,7 +315,7 @@ export default function PMFieldReport() {
         {showTabBar && (
           <TabBar
             tab={tab} setTab={setTab}
-            onQuickAdd={() => openForm(todayISO(), draftDates[todayISO()] ? undefined : null)}
+            onQuickAdd={(draft) => openForm(todayISO(), draft || null)}
           />
         )}
 
@@ -405,14 +405,14 @@ function TabBar({ tab, setTab, onQuickAdd }) {
       <button className={`tabBtn ${tab === "calendar" ? "active" : ""}`} onClick={() => setTab("calendar")}>
         <Icon.Calendar /><span>ปฏิทิน</span>
       </button>
-      <button className="tabFab" onClick={handlePlus} disabled={resolving}>
-        <Icon.Plus />
-      </button>
       <button className={`tabBtn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>
         <Icon.History /><span>ประวัติ</span>
       </button>
       <button className={`tabBtn ${tab === "drafts" ? "active" : ""}`} onClick={() => setTab("drafts")}>
         <Icon.Draft /><span>ฉบับร่าง</span>
+      </button>
+      <button className="tabBtn tabBtnAdd" onClick={handlePlus} disabled={resolving}>
+        <span className="addBadge"><Icon.Plus /></span><span>บันทึกงาน</span>
       </button>
     </div>
   );
@@ -807,6 +807,8 @@ function GlobalStyle() {
         --amber:#B57900; --amber-dim:#B57900; --amber-tint:rgba(181,121,0,0.10); --rust:#C23B1C; --text:#171A18;
         --muted:#5C655F; --ok:#2E7D46; --line:#06A24A;
       }
+      html, body{margin:0;padding:0;min-height:100%;background:#15181A;}
+      #root{min-height:100vh;}
       *{box-sizing:border-box;}
       .app{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;justify-content:center;}
       .phone{width:100%;max-width:460px;min-height:100vh;background:var(--surface);display:flex;flex-direction:column;position:relative;}
@@ -881,10 +883,11 @@ function GlobalStyle() {
       .muted{color:var(--muted);font-size:14px;}
 
       .desktopNav{display:none;}
-      .tabBar{display:flex;align-items:center;justify-content:space-around;background:var(--surface);border-top:1px solid var(--border);padding:8px 10px calc(8px + env(safe-area-inset-bottom));position:relative;}
-      .tabBtn{background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-family:'Sarabun',sans-serif;cursor:pointer;padding:4px 10px;flex:1;}
+      .tabBar{display:grid;grid-template-columns:repeat(4,1fr);align-items:stretch;background:var(--surface);border-top:1px solid var(--border);padding:8px 6px calc(8px + env(safe-area-inset-bottom));}
+      .tabBtn{background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-family:'Sarabun',sans-serif;cursor:pointer;padding:6px 4px;}
       .tabBtn.active{color:var(--amber);}
-      .tabFab{width:50px;height:50px;border-radius:50%;background:var(--amber);color:#20220a;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:-26px;box-shadow:0 4px 12px rgba(0,0,0,.4);border:3px solid var(--surface);}
+      .tabBtnAdd{color:var(--amber);}
+      .addBadge{width:26px;height:26px;border-radius:50%;background:var(--amber);color:#20220a;display:flex;align-items:center;justify-content:center;}
 
       /* Calendar */
       .calHead{display:flex;align-items:center;justify-content:space-between;}
@@ -921,11 +924,23 @@ function GlobalStyle() {
       @media (min-width: 860px){
         .app{padding:0;align-items:flex-start;}
         .phone{max-width:none;width:100%;min-height:100vh;}
-        .systemHeader{padding:16px 32px;}
+        .systemHeader{padding:18px 32px;}
+        .sysBrand{gap:12px;}
+        .sysBrand svg{width:26px;height:26px;}
+        .logoWrench{width:16px !important;height:16px !important;}
+        .sysTitle{font-size:19px;}
+        .sysSub{font-size:12.5px;}
+        .themeToggle{padding:4px;}
+        .themeSeg{width:32px;height:28px;}
+        .themeSeg svg{width:18px;height:18px;}
         .desktopNav{display:flex;align-items:center;gap:6px;padding:10px 32px;background:var(--surface);border-bottom:1px solid var(--border);}
-        .deskTab{display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--muted);font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:600;padding:8px 14px;border-radius:6px;cursor:pointer;}
+        .deskTab{display:flex;align-items:center;gap:8px;background:none;border:none;color:var(--muted);font-family:'Chakra Petch',sans-serif;font-size:14px;font-weight:600;padding:10px 16px;border-radius:6px;cursor:pointer;}
+        .deskTab svg{width:18px;height:18px;}
         .deskTab.active{color:var(--amber);background:var(--amber-tint);}
-        .deskAdd{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--amber);color:#20220a;border:none;font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:700;padding:9px 16px;border-radius:6px;cursor:pointer;}
+        .deskAdd{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--amber);color:#20220a;border:none;font-family:'Chakra Petch',sans-serif;font-size:14px;font-weight:700;padding:11px 20px;border-radius:6px;cursor:pointer;}
+        .deskAdd svg{width:18px;height:18px;}
+        .stepTitle{font-size:22px;}
+        .calTitle{font-size:20px;}
         .deskTab:disabled,.deskAdd:disabled{opacity:0.4;cursor:default;}
         .tabBar{display:none;}
         .content{max-width:900px;margin:0 auto;width:100%;padding:32px 32px 48px;}
