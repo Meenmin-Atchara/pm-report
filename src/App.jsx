@@ -197,7 +197,7 @@ const LOGO = (p) => (
   </svg>
 );
 
-export default function PMFieldReport() {
+export default function App() {
   const [tab, setTab] = useState("calendar"); // calendar | history | drafts
   const [stack, setStack] = useState(null); // { screen: 'daylist'|'form'|'viewreport', ... }
   const [viewMonth, setViewMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
