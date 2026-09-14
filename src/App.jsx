@@ -125,12 +125,20 @@ async function getAllDrafts() {
     return items.filter(Boolean).sort((a, b) => (a.date < b.date ? 1 : -1));
   } catch { return []; }
 }
-async function saveReport(form) {
-  const id = uid();
+async function saveReport(form, existingId, originalDate) {
+  const id = existingId || uid();
+  // If the date was changed while editing, the storage key (which embeds the
+  // date) must move — delete the old key so we don't leave a stale copy behind.
+  if (existingId && originalDate && originalDate !== form.date) {
+    try { await window.storage.delete(`report:${originalDate}:${existingId}`, true); } catch {}
+  }
   const key = `report:${form.date}:${id}`;
   const payload = { ...form, id, finalizedAt: new Date().toISOString() };
   try { await window.storage.set(key, JSON.stringify(payload), true); } catch {}
   return payload;
+}
+async function deleteReport(dateISO, id) {
+  try { await window.storage.delete(`report:${dateISO}:${id}`, true); } catch {}
 }
 async function listReportKeys() {
   try { const res = await window.storage.list("report:", true); return res?.keys || []; } catch { return []; }
@@ -186,6 +194,31 @@ const Icon = {
   Moon: (p) => (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" {...p}>
       <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+    </svg>
+  ),
+  Trash: (p) => (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" {...p}>
+      <path d="M4 7h16M9 7V4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  ),
+  Edit: (p) => (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" {...p}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  ),
+  Camera: (p) => (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" {...p}>
+      <path d="M4 8h3l1.6-2.4A1 1 0 0 1 9.4 5h5.2a1 1 0 0 1 .8.6L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13.5" r="3.3" />
+    </svg>
+  ),
+  Gallery: (p) => (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" {...p}>
+      <rect x="3" y="4" width="18" height="15" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.6" />
+      <path d="M21 15l-5.5-5-9.5 8" />
     </svg>
   ),
 };
@@ -246,7 +279,8 @@ export default function PMFieldReport() {
     const [reports, draft] = await Promise.all([getReportsForDate(iso), getDraft(iso)]);
     setStack({ screen: "daylist", date: iso, loading: false, reports, draft });
   }
-  function openForm(iso, draft) { setStack({ screen: "form", date: iso, draft }); }
+  function openForm(iso, draft, editingReport) { setStack({ screen: "form", date: iso, draft, editingReport }); }
+  function openEditReport(report) { setStack({ screen: "form", date: report.date, draft: null, editingReport: report }); }
   function openViewReport(report) { setStack({ screen: "viewreport", report }); }
   function closeStack() { setStack(null); }
 
@@ -277,7 +311,10 @@ export default function PMFieldReport() {
             <HistoryScreen onOpenReport={openViewReport} />
           )}
           {stack === null && tab === "drafts" && (
-            <DraftsScreen onResume={(d) => openForm(d.date, d.form)} />
+            <DraftsScreen
+              onResume={(d) => openForm(d.date, d.form)}
+              onDeleted={refreshIndex}
+            />
           )}
 
           {stack?.screen === "daylist" && (
@@ -286,18 +323,27 @@ export default function PMFieldReport() {
               onBack={closeStack}
               onNewOrResume={() => openForm(stack.date, stack.draft)}
               onViewReport={openViewReport}
+              onDraftDeleted={async () => { await deleteDraft(stack.date); await refreshIndex(); showToast("ลบฉบับร่างแล้ว"); await openDay(stack.date); }}
             />
           )}
           {stack?.screen === "form" && (
             <ReportForm
-              dateISO={stack.date} initialDraft={stack.draft}
-              onExitToDay={async () => { await openDay(stack.date); }}
+              dateISO={stack.date} initialDraft={stack.draft} editingReport={stack.editingReport}
+              onExitToDay={async () => {
+                if (stack.editingReport) { setStack({ screen: "viewreport", report: stack.editingReport }); }
+                else { await openDay(stack.date); }
+              }}
               onDraftSaved={async (form) => { await refreshIndex(); showToast("บันทึกฉบับร่างแล้ว"); }}
               onFinalized={async () => {
                 await deleteDraft(stack.date);
                 await refreshIndex();
                 showToast("บันทึกเข้าประวัติแล้ว");
                 await openDay(stack.date);
+              }}
+              onUpdated={async (updated) => {
+                await refreshIndex();
+                showToast("บันทึกการแก้ไขแล้ว");
+                setStack({ screen: "viewreport", report: updated });
               }}
               onPrint={(form) => setPrintPayload(form)}
               showToast={showToast}
@@ -308,6 +354,13 @@ export default function PMFieldReport() {
               report={stack.report}
               onBack={() => setStack(null)}
               onPrint={() => setPrintPayload(stack.report)}
+              onEdit={() => openEditReport(stack.report)}
+              onDelete={async () => {
+                await deleteReport(stack.report.date, stack.report.id);
+                await refreshIndex();
+                showToast("ลบบันทึกแล้ว");
+                setStack(null);
+              }}
             />
           )}
         </div>
@@ -320,6 +373,8 @@ export default function PMFieldReport() {
         )}
 
         {toast && <div className="toast">{toast}</div>}
+
+        <div className="copyrightBar">© 2023 By Meenmin-Atchara.</div>
 
         <div className="printArea">
           {printPayload && (
@@ -344,6 +399,37 @@ export default function PMFieldReport() {
 // Quick-add: resolve today's draft before opening the form
 // ---------------------------------------------------------------------------
 function useQuickAddResolver() {}
+
+// ---------------------------------------------------------------------------
+// Confirm-to-delete button — first tap arms it, second tap (within a few
+// seconds) confirms. Avoids window.confirm, which some embedded/preview
+// browsers block.
+// ---------------------------------------------------------------------------
+function ConfirmDeleteButton({ onConfirm, label = "ลบ", confirmLabel = "ยืนยันลบ?", className = "" }) {
+  const [armed, setArmed] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  function handleClick(e) {
+    e.stopPropagation();
+    if (!armed) {
+      setArmed(true);
+      timerRef.current = setTimeout(() => setArmed(false), 3000);
+      return;
+    }
+    clearTimeout(timerRef.current);
+    setArmed(false);
+    onConfirm();
+  }
+
+  return (
+    <button className={`${className} ${armed ? "confirmArmed" : ""}`} onClick={handleClick}>
+      <Icon.Trash />
+      {armed ? confirmLabel : label}
+    </button>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // System header — always visible, holds branding + theme switch
@@ -532,9 +618,16 @@ function HistoryScreen({ onOpenReport }) {
 // ---------------------------------------------------------------------------
 // Drafts tab — flat list of all pending drafts across every date
 // ---------------------------------------------------------------------------
-function DraftsScreen({ onResume }) {
+function DraftsScreen({ onResume, onDeleted }) {
   const [items, setItems] = useState(null);
-  useEffect(() => { getAllDrafts().then(setItems); }, []);
+  const load = () => getAllDrafts().then(setItems);
+  useEffect(() => { load(); }, []);
+
+  async function handleDelete(dateISO) {
+    await deleteDraft(dateISO);
+    await load();
+    onDeleted?.();
+  }
 
   return (
     <>
@@ -546,7 +639,10 @@ function DraftsScreen({ onResume }) {
         {items !== null && items.length === 0 && <p className="muted">ไม่มีฉบับร่างค้างอยู่</p>}
         {items !== null && items.map((d) => (
           <div className="draftCard" key={d.date} onClick={() => onResume(d)}>
-            <div className="draftBadge">{thaiDateShort(d.date)} · {siteLabelOf(d.form) || "ยังไม่ระบุหน้างาน"}</div>
+            <div className="draftCardHead">
+              <div className="draftBadge">{thaiDateShort(d.date)} · {siteLabelOf(d.form) || "ยังไม่ระบุหน้างาน"}</div>
+              <ConfirmDeleteButton className="miniDeleteBtn" onConfirm={() => handleDelete(d.date)} label="" confirmLabel="ยืนยัน?" />
+            </div>
             <div className="summaryPreview">{buildSummaryText(d.form).slice(0, 140)}...</div>
             <div className="draftCta">แตะเพื่อทำต่อ →</div>
           </div>
@@ -559,7 +655,7 @@ function DraftsScreen({ onResume }) {
 // ---------------------------------------------------------------------------
 // Day list (all entries for one date, reached from the calendar)
 // ---------------------------------------------------------------------------
-function DayListScreen({ dateISO, reports, draft, loading, onBack, onNewOrResume, onViewReport }) {
+function DayListScreen({ dateISO, reports, draft, loading, onBack, onNewOrResume, onViewReport, onDraftDeleted }) {
   const holiday = TH_HOLIDAYS[dateISO];
   return (
     <>
@@ -572,7 +668,10 @@ function DayListScreen({ dateISO, reports, draft, loading, onBack, onNewOrResume
         {loading && <p className="muted">กำลังโหลด...</p>}
         {!loading && draft && (
           <div className="draftCard" onClick={onNewOrResume}>
-            <div className="draftBadge">ฉบับร่าง — ยังไม่บันทึกเข้าประวัติ</div>
+            <div className="draftCardHead">
+              <div className="draftBadge">ฉบับร่าง — ยังไม่บันทึกเข้าประวัติ</div>
+              <ConfirmDeleteButton className="miniDeleteBtn" onConfirm={onDraftDeleted} label="" confirmLabel="ยืนยัน?" />
+            </div>
             <div className="summaryPreview">{buildSummaryText(draft).slice(0, 140)}...</div>
             <div className="draftCta">แตะเพื่อทำต่อ →</div>
           </div>
@@ -595,7 +694,7 @@ function DayListScreen({ dateISO, reports, draft, loading, onBack, onNewOrResume
 // ---------------------------------------------------------------------------
 // View a single finalized report
 // ---------------------------------------------------------------------------
-function ViewReportScreen({ report, onBack, onPrint }) {
+function ViewReportScreen({ report, onBack, onPrint, onEdit, onDelete }) {
   return (
     <>
       <div className="topbar">
@@ -608,8 +707,10 @@ function ViewReportScreen({ report, onBack, onPrint }) {
           <div className="summaryPhotos">{report.photos.map((p) => <img key={p.id} src={p.src} alt={p.name} />)}</div>
         )}
       </div>
-      <div className="footer">
+      <div className="footer footerWrap">
+        <button className="btn btnGhost" onClick={onEdit}><Icon.Edit /> แก้ไข</button>
         <button className="btn btnPdf" onClick={onPrint}>บันทึกเป็น PDF</button>
+        <ConfirmDeleteButton className="btn btnDanger" onConfirm={onDelete} label="ลบบันทึกนี้" confirmLabel="ยืนยันลบ?" />
       </div>
     </>
   );
@@ -618,10 +719,11 @@ function ViewReportScreen({ report, onBack, onPrint }) {
 // ---------------------------------------------------------------------------
 // The 5-step report form
 // ---------------------------------------------------------------------------
-function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinalized, onPrint, showToast }) {
+function ReportForm({ dateISO, initialDraft, editingReport, onExitToDay, onDraftSaved, onFinalized, onUpdated, onPrint, showToast }) {
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState(() => initialDraft || emptyForm(dateISO));
+  const [form, setForm] = useState(() => editingReport || initialDraft || emptyForm(dateISO));
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -651,6 +753,7 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
   const siteLabel = siteLabelOf(form);
   const summaryText = useMemo(() => buildSummaryText(form), [form]);
   const holiday = TH_HOLIDAYS[form.date];
+  const isEditing = !!editingReport;
 
   async function saveDraft() { await setDraftStore(form.date, form); onDraftSaved(form); }
   function copySummary() {
@@ -665,7 +768,15 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
     window.location.href = `line://msg/text/${text}`;
     showToast("เปิดไลน์แล้ว เลือกกลุ่มปลายทาง (แนบรูปเพิ่มเองในแชท)");
   }
-  async function finalizeToHistory() { await saveReport(form); onFinalized(); }
+  async function finalizeToHistory() {
+    if (isEditing) {
+      const updated = await saveReport(form, editingReport.id, editingReport.date);
+      onUpdated(updated);
+    } else {
+      await saveReport(form);
+      onFinalized();
+    }
+  }
 
   const canNext = [!!siteLabel && !!form.date, true, true, true];
 
@@ -674,7 +785,9 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
       <div className="topbar">
         <div className="backRow">
           <button className="backBtn" onClick={onExitToDay}>‹ ออก</button>
-          <button className="draftLink" onClick={saveDraft}>💾 บันทึกฉบับร่าง</button>
+          {isEditing
+            ? <span className="editingBadge">กำลังแก้ไขบันทึกเดิม</span>
+            : <button className="draftLink" onClick={saveDraft}>💾 บันทึกฉบับร่าง</button>}
         </div>
         <div className="stepRow">
           <span className="stepTitle">{STEPS[step]}</span>
@@ -758,8 +871,12 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
                 <div className="photoThumb" key={p.id}><img src={p.src} alt={p.name} /><button className="photoRemove" onClick={() => setPhotos((prev) => prev.filter((x) => x.id !== p.id))}>×</button></div>
               ))}
               <label className="photoAdd">
-                <span>+</span>เพิ่มรูป
-                <input ref={fileInputRef} type="file" accept="image/*" multiple capture="environment" style={{ display: "none" }} onChange={onPhotoPick} />
+                <Icon.Camera />ถ่ายรูป
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onPhotoPick} />
+              </label>
+              <label className="photoAdd">
+                <Icon.Gallery />เลือกจากอัลบัม
+                <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onPhotoPick} />
               </label>
             </div>
           </>
@@ -774,7 +891,9 @@ function ReportForm({ dateISO, initialDraft, onExitToDay, onDraftSaved, onFinali
               <button className="btn btnLine" onClick={sendToLine}>ส่งเข้ากลุ่มไลน์</button>
               <button className="btn btnPdf" onClick={() => onPrint(form)}>บันทึกเป็น PDF</button>
               <button className="copyLink" onClick={copySummary}>คัดลอกข้อความอย่างเดียว</button>
-              <button className="btn btnFinish" onClick={finalizeToHistory}>✓ จบงานวันนี้ / บันทึกเข้าประวัติ</button>
+              <button className="btn btnFinish" onClick={finalizeToHistory}>
+                {isEditing ? "✓ บันทึกการแก้ไข" : "✓ จบงานวันนี้ / บันทึกเข้าประวัติ"}
+              </button>
             </div>
           </>
         )}
@@ -864,8 +983,8 @@ function GlobalStyle() {
       .photoThumb{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;border:1px solid var(--border);}
       .photoThumb img{width:100%;height:100%;object-fit:cover;display:block;}
       .photoRemove{position:absolute;top:4px;right:4px;width:20px;height:20px;background:rgba(0,0,0,0.65);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-      .photoAdd{aspect-ratio:1;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:var(--muted);font-size:12px;cursor:pointer;background:var(--surface2);}
-      .photoAdd span{font-size:22px;color:var(--amber);}
+      .photoAdd{aspect-ratio:1;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;color:var(--muted);font-size:10.5px;text-align:center;line-height:1.3;cursor:pointer;background:var(--surface2);padding:4px;}
+      .photoAdd svg{color:var(--amber);}
       .summaryBox{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;white-space:pre-wrap;font-size:14px;line-height:1.7;}
       .summaryPreview{font-size:13px;color:var(--muted);line-height:1.6;white-space:pre-wrap;margin-top:6px;}
       .summaryPhotos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px;}
@@ -881,6 +1000,15 @@ function GlobalStyle() {
       .copyLink{text-align:center;font-size:13px;color:var(--muted);background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;}
       .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--amber);color:var(--text);padding:10px 16px;border-radius:8px;font-size:13px;max-width:380px;text-align:center;z-index:50;}
       .muted{color:var(--muted);font-size:14px;}
+      .copyrightBar{text-align:center;font-size:10.5px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--border);background:var(--surface);}
+      .editingBadge{font-size:12px;color:var(--amber);font-family:'Chakra Petch',sans-serif;font-weight:600;}
+      .footerWrap{flex-wrap:wrap;}
+      .btnDanger{background:none;border:1px solid var(--rust);color:var(--rust);display:flex;align-items:center;justify-content:center;gap:6px;}
+      .btnDanger.confirmArmed{background:var(--rust);color:#fff;}
+      .btnGhost{display:flex;align-items:center;justify-content:center;gap:6px;}
+      .draftCardHead{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+      .miniDeleteBtn{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;flex-shrink:0;}
+      .miniDeleteBtn.confirmArmed{background:var(--rust);border-color:var(--rust);color:#fff;}
 
       .desktopNav{display:none;}
       .tabBar{display:grid;grid-template-columns:repeat(4,1fr);align-items:stretch;background:var(--surface);border-top:1px solid var(--border);padding:8px 6px calc(8px + env(safe-area-inset-bottom));}
