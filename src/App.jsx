@@ -374,7 +374,7 @@ export default function PMFieldReport() {
 
         {toast && <div className="toast">{toast}</div>}
 
-        <div className="copyrightBar">© 2023 By Meenmin-Atchara.</div>
+        <div className="copyrightBar">© 2026 By Meenmin-Atchara.</div>
 
         <div className="printArea">
           {printPayload && (
@@ -1000,7 +1000,7 @@ function GlobalStyle() {
       .copyLink{text-align:center;font-size:13px;color:var(--muted);background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;}
       .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--amber);color:var(--text);padding:10px 16px;border-radius:8px;font-size:13px;max-width:380px;text-align:center;z-index:50;}
       .muted{color:var(--muted);font-size:14px;}
-      .copyrightBar{text-align:center;font-size:10.5px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--border);background:var(--surface);}
+      .copyrightBar{text-align:center;font-size:16px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--border);background:var(--surface);}
       .editingBadge{font-size:12px;color:var(--amber);font-family:'Chakra Petch',sans-serif;font-weight:600;}
       .footerWrap{flex-wrap:wrap;}
       .btnDanger{background:none;border:1px solid var(--rust);color:var(--rust);display:flex;align-items:center;justify-content:center;gap:6px;}
