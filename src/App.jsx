@@ -286,6 +286,16 @@ export default function PMFieldReport() {
 
   const showTabBar = stack === null;
 
+  function closeModal() {
+    if (!stack) return;
+    if (stack.screen === "daylist") { closeStack(); return; }
+    if (stack.screen === "viewreport") { setStack(null); return; }
+    if (stack.screen === "form") {
+      if (stack.editingReport) setStack({ screen: "viewreport", report: stack.editingReport });
+      else openDay(stack.date);
+    }
+  }
+
   return (
     <div className="app" data-theme={theme}>
       <GlobalStyle />
@@ -300,67 +310,20 @@ export default function PMFieldReport() {
           disabled={stack !== null}
         />
         <div className="screenArea">
-          {stack === null && tab === "calendar" && (
+          {tab === "calendar" && (
             <CalendarScreen
               viewMonth={viewMonth} setViewMonth={setViewMonth}
               reportDates={reportDates} draftDates={draftDates}
               onSelectDay={openDay}
             />
           )}
-          {stack === null && tab === "history" && (
+          {tab === "history" && (
             <HistoryScreen onOpenReport={openViewReport} />
           )}
-          {stack === null && tab === "drafts" && (
+          {tab === "drafts" && (
             <DraftsScreen
               onResume={(d) => openForm(d.date, d.form)}
               onDeleted={refreshIndex}
-            />
-          )}
-
-          {stack?.screen === "daylist" && (
-            <DayListScreen
-              dateISO={stack.date} reports={stack.reports} draft={stack.draft} loading={stack.loading}
-              onBack={closeStack}
-              onNewOrResume={() => openForm(stack.date, stack.draft)}
-              onViewReport={openViewReport}
-              onDraftDeleted={async () => { await deleteDraft(stack.date); await refreshIndex(); showToast("ลบฉบับร่างแล้ว"); await openDay(stack.date); }}
-            />
-          )}
-          {stack?.screen === "form" && (
-            <ReportForm
-              dateISO={stack.date} initialDraft={stack.draft} editingReport={stack.editingReport}
-              onExitToDay={async () => {
-                if (stack.editingReport) { setStack({ screen: "viewreport", report: stack.editingReport }); }
-                else { await openDay(stack.date); }
-              }}
-              onDraftSaved={async (form) => { await refreshIndex(); showToast("บันทึกฉบับร่างแล้ว"); }}
-              onFinalized={async () => {
-                await deleteDraft(stack.date);
-                await refreshIndex();
-                showToast("บันทึกเข้าประวัติแล้ว");
-                await openDay(stack.date);
-              }}
-              onUpdated={async (updated) => {
-                await refreshIndex();
-                showToast("บันทึกการแก้ไขแล้ว");
-                setStack({ screen: "viewreport", report: updated });
-              }}
-              onPrint={(form) => setPrintPayload(form)}
-              showToast={showToast}
-            />
-          )}
-          {stack?.screen === "viewreport" && (
-            <ViewReportScreen
-              report={stack.report}
-              onBack={() => setStack(null)}
-              onPrint={() => setPrintPayload(stack.report)}
-              onEdit={() => openEditReport(stack.report)}
-              onDelete={async () => {
-                await deleteReport(stack.report.date, stack.report.id);
-                await refreshIndex();
-                showToast("ลบบันทึกแล้ว");
-                setStack(null);
-              }}
             />
           )}
         </div>
@@ -370,6 +333,67 @@ export default function PMFieldReport() {
             tab={tab} setTab={setTab}
             onQuickAdd={(draft) => openForm(todayISO(), draft || null)}
           />
+        )}
+
+        {stack && (
+          <div className="modalOverlay">
+            <div className="modalCard">
+              <div className="modalCloseBar">
+                <button className="modalClose" onClick={closeModal} aria-label="ปิด">×</button>
+              </div>
+              <div className="modalBody">
+                {stack.screen === "daylist" && (
+                  <DayListScreen
+                    dateISO={stack.date} reports={stack.reports} draft={stack.draft} loading={stack.loading}
+                    onBack={closeModal}
+                    onNewOrResume={() => openForm(stack.date, stack.draft)}
+                    onViewReport={openViewReport}
+                    onDraftDeleted={async () => { await deleteDraft(stack.date); await refreshIndex(); showToast("ลบฉบับร่างแล้ว"); await openDay(stack.date); }}
+                  />
+                )}
+                {stack.screen === "form" && (
+                  <ReportForm
+                    dateISO={stack.date} initialDraft={stack.draft} editingReport={stack.editingReport}
+                    onExitToDay={closeModal}
+                    onDraftSaved={async (form) => {
+                      await refreshIndex();
+                      showToast("บันทึกฉบับร่างแล้ว");
+                      setTab("drafts");
+                      setStack(null);
+                    }}
+                    onFinalized={async () => {
+                      await deleteDraft(stack.date);
+                      await refreshIndex();
+                      showToast("บันทึกเข้าประวัติแล้ว");
+                      setTab("history");
+                      setStack(null);
+                    }}
+                    onUpdated={async (updated) => {
+                      await refreshIndex();
+                      showToast("บันทึกการแก้ไขแล้ว");
+                      setStack({ screen: "viewreport", report: updated });
+                    }}
+                    onPrint={(form) => setPrintPayload(form)}
+                    showToast={showToast}
+                  />
+                )}
+                {stack.screen === "viewreport" && (
+                  <ViewReportScreen
+                    report={stack.report}
+                    onBack={closeModal}
+                    onPrint={() => setPrintPayload(stack.report)}
+                    onEdit={() => openEditReport(stack.report)}
+                    onDelete={async () => {
+                      await deleteReport(stack.report.date, stack.report.id);
+                      await refreshIndex();
+                      showToast("ลบบันทึกแล้ว");
+                      setStack(null);
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {toast && <div className="toast">{toast}</div>}
@@ -999,6 +1023,14 @@ function GlobalStyle() {
       .btnPdf{background:var(--surface2);color:var(--amber);border:1px solid var(--amber-dim);}
       .copyLink{text-align:center;font-size:13px;color:var(--muted);background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;}
       .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--amber);color:var(--text);padding:10px 16px;border-radius:8px;font-size:13px;max-width:380px;text-align:center;z-index:50;}
+      .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100;display:flex;justify-content:center;}
+      .modalCard{width:100%;max-width:460px;height:100%;background:var(--surface);display:flex;flex-direction:column;overflow:hidden;}
+      .modalCloseBar{display:flex;justify-content:flex-end;align-items:center;padding:8px 14px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;}
+      .modalClose{width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:19px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+      .modalClose:hover{border-color:var(--amber);color:var(--amber);}
+      .modalBody{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+      .modalBody .content{overflow-y:auto;}
+
       .muted{color:var(--muted);font-size:14px;}
       .copyrightBar{text-align:center;font-size:10.5px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--border);background:var(--surface);}
       .editingBadge{font-size:12px;color:var(--amber);font-family:'Chakra Petch',sans-serif;font-weight:600;}
@@ -1071,6 +1103,9 @@ function GlobalStyle() {
         .calTitle{font-size:20px;}
         .deskTab:disabled,.deskAdd:disabled{opacity:0.4;cursor:default;}
         .tabBar{display:none;}
+        .modalOverlay{align-items:center;padding:32px;}
+        .modalCard{max-width:640px;height:auto;max-height:88vh;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.45);border:1px solid var(--border);}
+        .modalCloseBar{padding:10px 16px;}
         .content{max-width:900px;margin:0 auto;width:100%;padding:32px 32px 48px;}
         .topbar{max-width:900px;margin:0 auto;width:100%;padding:22px 32px 16px;}
         .footer{max-width:900px;margin:0 auto;width:100%;padding:18px 32px;}
